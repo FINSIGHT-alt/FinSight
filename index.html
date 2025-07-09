@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>FinSight</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to bottom right, #eef2f3, #cfd9df);
+      color: #222;
+      text-align: center;
+    }
+    .container {
+      padding: 100px 20px 40px;
+      transition: padding 0.4s ease;
+    }
+    .container.searched {
+      padding-top: 30px;
+    }
+    h1 {
+      font-size: 48px;
+      color: #2e3a59;
+      margin-bottom: 20px;
+    }
+    .search-box {
+      position: relative;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 14px 20px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 16px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+    }
+    #suggestions {
+      position: absolute;
+      width: 100%;
+      background: white;
+      border: 1px solid #ccc;
+      border-top: none;
+      max-height: 150px;
+      overflow-y: auto;
+      z-index: 1000;
+      text-align: left;
+    }
+    #suggestions div {
+      padding: 10px;
+      cursor: pointer;
+    }
+    #suggestions div:hover {
+      background: #f0f0f0;
+    }
+    button {
+      margin-top: 15px;
+      padding: 10px 24px;
+      background-color: #2e3a59;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .stock-data {
+      margin-top: 40px;
+      text-align: left;
+      max-width: 700px;
+      margin-left: auto;
+      margin-right: auto;
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    }
+    .chart-container {
+      position: relative;
+      height: 300px;
+      width: 100%;
+      margin-bottom: 40px;
+    }
+    canvas#lineChart {
+      width: 100% !important;
+      height: 100% !important;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 12px;
+      text-align: left;
+    }
+    .info-box {
+      margin-top: 15px;
+      background: #f9f9f9;
+      padding: 10px 15px;
+      border-left: 4px solid #2e3a59;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="container">
+    <h1>FinSight</h1>
+    <div class="search-box">
+      <input type="text" id="stockInput" placeholder="Search for a stock (e.g., AAPL, RELIANCE)" autocomplete="off" />
+      <div id="suggestions"></div>
+    </div>
+    <button onclick="searchStock()">Search</button>
+
+    <div class="stock-data" id="stockData" style="display:none;">
+      <h2 id="stockName">Stock Name</h2>
+      <p><strong>Price:</strong> <span id="price"></span></p>
+      <div class="chart-container">
+        <canvas id="lineChart"></canvas>
+      </div>
+
+      <p><strong>Overview:</strong> A leading company in its sector, showing consistent performance.</p>
+      <p><strong>P/E Ratio:</strong> 18.3</p>
+      <p><strong>EPS:</strong> ₹32.5</p>
+
+      <h3>Pros</h3>
+      <ul>
+        <li>Strong revenue growth</li>
+        <li>Market leader in its segment</li>
+        <li>Consistent dividend payout</li>
+      </ul>
+
+      <h3>Cons</h3>
+      <ul>
+        <li>High valuation compared to peers</li>
+        <li>Global market exposure risks</li>
+      </ul>
+
+      <h3>Profit & Loss (₹ in Cr)</h3>
+      <table>
+        <tr><th>Year</th><th>Revenue</th><th>Net Profit</th></tr>
+        <tr><td>2021</td><td>50,000</td><td>5,200</td></tr>
+        <tr><td>2022</td><td>54,300</td><td>6,100</td></tr>
+        <tr><td>2023</td><td>60,100</td><td>7,050</td></tr>
+      </table>
+
+      <div class="info-box">
+        <strong>What is P/E Ratio?</strong> Price-to-Earnings ratio shows how much investors are willing to pay for ₹1 of earnings.<br><br>
+        <strong>What is EPS?</strong> Earnings per Share – company's net profit divided by total shares.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_KEY = "7cd3b9a048514968adbe03ef5136a2fb";
+    const supported = ["AAPL", "GOOGL", "MSFT", "TSLA"];
+    const allStocks = [
+      "AAPL", "GOOGL", "MSFT", "TSLA", "RELIANCE", "ADANIPOWER", "TCS", "INFY", "ITC"
+    ];
+
+    async function searchStock() {
+      const input = document.getElementById("stockInput").value.toUpperCase().trim();
+      document.getElementById("suggestions").innerHTML = "";
+      document.getElementById("container").classList.add("searched");
+
+      if (!supported.includes(input)) {
+        window.open(`https://www.google.com/search?q=${input}+stock+price`, "_blank");
+        return;
+      }
+
+      try {
+        const priceRes = await fetch(`https://api.twelvedata.com/price?symbol=${input}&apikey=${API_KEY}`);
+        const priceData = await priceRes.json();
+
+        const chartRes = await fetch(`https://api.twelvedata.com/time_series?symbol=${input}&interval=1h&outputsize=24&apikey=${API_KEY}`);
+        const chartData = await chartRes.json();
+
+        document.getElementById("stockName").innerText = input;
+        document.getElementById("price").innerText = "$" + priceData.price;
+        document.getElementById("stockData").style.display = "block";
+
+        const labels = chartData.values.map(point => point.datetime.split(" ")[1]).reverse();
+        const prices = chartData.values.map(point => point.close).reverse();
+        const ctx = document.getElementById("lineChart").getContext("2d");
+        if (window.myChart) window.myChart.destroy();
+        window.myChart = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: labels,
+            datasets: [{
+              label: `${input} Price Trend`,
+              data: prices,
+              borderColor: "#2e3a59",
+              backgroundColor: "rgba(46, 58, 89, 0.1)",
+              fill: true,
+              tension: 0.4,
+              pointRadius: 2,
+              pointHoverRadius: 5
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: {
+                ticks: {
+                  maxTicksLimit: 6,
+                  autoSkip: true
+                }
+              },
+              y: {
+                beginAtZero: false,
+                ticks: {
+                  callback: function(value) {
+                    return "$" + value;
+                  }
+                }
+              }
+            },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                mode: 'index',
+                intersect: false
+              }
+            }
+          }
+        });
+
+      } catch (err) {
+        alert("Error fetching data.");
+        console.error(err);
+      }
+    }
+
+    const input = document.getElementById("stockInput");
+    const suggestionsBox = document.getElementById("suggestions");
+
+    input.addEventListener("input", function () {
+      const val = this.value.toUpperCase();
+      suggestionsBox.innerHTML = "";
+      if (!val) return;
+
+      const matches = allStocks.filter(stock => stock.includes(val));
+      matches.forEach(stock => {
+        const div = document.createElement("div");
+        div.textContent = stock;
+        div.onclick = () => {
+          input.value = stock;
+          suggestionsBox.innerHTML = "";
+        };
+        suggestionsBox.appendChild(div);
+      });
+    });
+
+    document.addEventListener("click", function (e) {
+      if (!suggestionsBox.contains(e.target) && e.target !== input) {
+        suggestionsBox.innerHTML = "";
+      }
+    });
+  </script>
+</body>
+</html>
